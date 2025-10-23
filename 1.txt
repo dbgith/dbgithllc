@@ -1,0 +1,791 @@
+import React, { useEffect, useMemo, useState } from "react";
+
+// ────────────────────────────────────────────────────────────────────────────────
+// Brookhaven Handyman & Landscaping — Single‑file React site + Yard Estimator
+// TailwindCSS classes are used for styling. Replace business info below.
+// All external links open in a new tab.
+// ────────────────────────────────────────────────────────────────────────────────
+
+const BIZ = {
+  name: "DBGITH.LLC — Handyman & Landscaping Professionals",
+  tagline: "Reliable fixes. Clean yards. Fair prices.",
+  phone: "(631) 555-0134",
+  email: "contact@dbgith.llc@gmail.com", // TODO: this looks like two domains combined; update if needed
+  owner: "Dan Greene",
+  city: "Brookhaven",
+  county: "Suffolk and Nassau County",
+  state: "NY",
+  hours: "Mon–Sun 5am–10pm",
+  cta: "Request a free estimate",
+  address: "Brookhaven, NY",
+};
+
+const SERVICES = [
+  {
+    title: "Handyman Repairs",
+    items: [
+      "Doors & locks",
+      "Drywall patch & paint",
+      "Trim & molding",
+      "Flooring & tile",
+      "Outlet/switch replace",
+      "TV mounting & shelving",
+    ],
+  },
+  {
+    title: "Carpentry",
+    items: [
+      "Deck & stair repairs",
+      "Pergolas & fencing",
+      "Custom storage",
+      "Interior framing",
+      "Sheds & ramps",
+      "Exterior wood rot fixes",
+    ],
+  },
+  {
+    title: "Landscaping",
+    items: [
+      "Mowing & edging",
+      "Hedge & shrub trim",
+      "Mulch & stone",
+      "Planting & bed design",
+      "Leaf cleanup",
+      "Gutter cleaning",
+    ],
+  },
+  {
+    title: "Seasonal",
+    items: [
+      "Spring/fall cleanups",
+      "Storm debris",
+      "Pressure washing",
+      "Aeration & dethatch",
+      "Snow shoveling (sidewalks)",
+      "Holiday light hanging",
+    ],
+  },
+];
+
+const AREAS = [
+  "Brookhaven",
+  "Patchogue",
+  "Medford",
+  "Holtsville",
+  "Holbrook",
+  "Ronkonkoma",
+  "Selden",
+  "Coram",
+  "Mastic / Shirley",
+  "Stony Brook",
+  "Smithtown",
+  "Islip",
+];
+
+const TESTIMONIALS = [
+  {
+    name: "Kara, Patchogue",
+    quote:
+      "Answered quick, showed up on time, and my fence gate swings like new. Fair price, 10/10.",
+  },
+  {
+    name: "Luis, Holbrook",
+    quote:
+      "Yard looked rough after the storm—cleaned it up same day and hauled everything away.",
+  },
+  {
+    name: "Maya, Medford",
+    quote: "Professional, tidy, and honest. Will definitely hire again.",
+  },
+];
+
+function CheckIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden {...props}>
+      <path d="M20 7L9 18l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function PhoneIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden {...props}>
+      <path d="M22 16.92v2a2 2 0 0 1-2.18 2A19.86 19.86 0 0 1 3.11 4.18 2 2 0 0 1 5.1 2h2a2 2 0 0 1 2 1.72 12.66 12.66 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.66 12.66 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function MailIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden {...props}>
+      <path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="m22 6-10 7L2 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function Badge({ children }) {
+  return <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm">{children}</span>;
+}
+
+// Yard Clean‑Up Estimator constants (from your HTML version)
+const BASE_BY_SIZE = { small: 150, medium: 250, large: 350, xl: 550 };
+const CONDITION_ADD = { light: 0, standard: 80, heavy: 200, jungle: 400 };
+const TREE_ADD = { low: 0, med: 50, high: 120 };
+const ACCESS_ADD = { easy: 0, normal: 25, difficult: 75 };
+const SERVICE_ADD = { leaves: 0, beds: 75, shrubs: 90, edging: 35, mulch: 110, gutter: 95 };
+const HAUL_ADD_BY_COND = { curb: 0, haul: { light: 50, standard: 90, heavy: 140, jungle: 220 } };
+const RUSH_MULT = 1.15,
+  RECURRING_MULT = 0.9;
+
+function currency(v) {
+  return v.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+}
+
+function Estimator() {
+  const [size, setSize] = useState("small");
+  const [condition, setCondition] = useState("light");
+  const [trees, setTrees] = useState("low");
+  const [access, setAccess] = useState("easy");
+  const [haul, setHaul] = useState("curb");
+  const [freq, setFreq] = useState("once");
+  const [rush, setRush] = useState(false);
+  const [svcs, setSvcs] = useState(["leaves"]);
+
+  const toggleSvc = (s) => setSvcs((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+
+  const { total, low, high, lines } = useMemo(() => {
+    let sub = BASE_BY_SIZE[size];
+    const linesArr = [[`Base (${size})`, BASE_BY_SIZE[size]]];
+
+    sub += CONDITION_ADD[condition];
+    if (CONDITION_ADD[condition]) linesArr.push([`Condition (${condition})`, CONDITION_ADD[condition]]);
+
+    sub += TREE_ADD[trees];
+    if (TREE_ADD[trees]) linesArr.push(["Tree cover", TREE_ADD[trees]]);
+
+    sub += ACCESS_ADD[access];
+    if (ACCESS_ADD[access]) linesArr.push(["Access", ACCESS_ADD[access]]);
+
+    svcs.forEach((s) => {
+      sub += SERVICE_ADD[s] || 0;
+      if (SERVICE_ADD[s]) linesArr.push([labelForService(s), SERVICE_ADD[s]]);
+    });
+
+    if (haul === "haul") {
+      const a = HAUL_ADD_BY_COND.haul[condition];
+      sub += a;
+      linesArr.push(["Haul away", a]);
+    }
+
+    let mult = 1;
+    if (freq === "recurring") mult *= RECURRING_MULT;
+    if (rush) mult *= RUSH_MULT;
+
+    const t = Math.max(120, Math.round(sub * mult));
+    return { total: t, low: Math.round(t * 0.9), high: Math.round(t * 1.1), lines: linesArr };
+  }, [size, condition, trees, access, haul, freq, rush, svcs]);
+
+  function labelForService(key) {
+    return (
+      {
+        leaves: "Leaf & debris removal",
+        beds: "Garden beds / weeding",
+        shrubs: "Shrub/hedge trimming",
+        edging: "Edging",
+        mulch: "Mulch (labor only)",
+        gutter: "Gutter clean (1-story)",
+      }[key] || key
+    );
+  }
+
+  return (
+    <section id="estimator" className="py-16 md:py-24 bg-slate-50">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Yard Clean‑Up Estimator</h2>
+            <p className="mt-2 text-slate-600">Check what matches your yard to see a ballpark range and breakdown.</p>
+          </div>
+          <div className="text-right text-sm text-slate-500 hidden md:block">
+            <strong>{BIZ.name}</strong>
+            <br />
+            {BIZ.city}, NY
+          </div>
+        </div>
+
+        <div className="mt-8 grid gap-6 md:grid-cols-2">
+          {/* LEFT FORM */}
+          <div className="rounded-3xl border bg-white p-6 shadow-sm">
+            <div className="grid gap-6">
+              <Fieldset legend="Lot size">
+                {[
+                  ["small", "Small (<⅛ acre)"],
+                  ["medium", "Medium (⅛–¼ acre)"],
+                  ["large", "Large (¼–½ acre)"],
+                  ["xl", "XL (½–1 acre)"],
+                ].map(([v, label]) => (
+                  <Radio key={v} name="size" value={v} checked={size === v} onChange={setSize}>
+                    {label}
+                  </Radio>
+                ))}
+              </Fieldset>
+
+              <Fieldset legend="Yard condition">
+                {[
+                  ["light", "Light"],
+                  ["standard", "Standard"],
+                  ["heavy", "Heavy debris"],
+                  ["jungle", "Overgrown / neglected"],
+                ].map(([v, label]) => (
+                  <Radio key={v} name="condition" value={v} checked={condition === v} onChange={setCondition}>
+                    {label}
+                  </Radio>
+                ))}
+              </Fieldset>
+
+              <Fieldset legend="Tree cover">
+                {[
+                  ["low", "Low"],
+                  ["med", "Moderate"],
+                  ["high", "Heavy"],
+                ].map(([v, label]) => (
+                  <Radio key={v} name="trees" value={v} checked={trees === v} onChange={setTrees}>
+                    {label}
+                  </Radio>
+                ))}
+              </Fieldset>
+
+              <Fieldset legend="Access / terrain">
+                {[
+                  ["easy", "Easy"],
+                  ["normal", "Normal"],
+                  ["difficult", "Difficult"],
+                ].map(([v, label]) => (
+                  <Radio key={v} name="access" value={v} checked={access === v} onChange={setAccess}>
+                    {label}
+                  </Radio>
+                ))}
+              </Fieldset>
+
+              <Fieldset legend="Services wanted">
+                {[
+                  ["leaves", "Leaf & debris removal"],
+                  ["beds", "Garden beds / weeding"],
+                  ["shrubs", "Shrub/hedge trimming"],
+                  ["edging", "Edging"],
+                  ["mulch", "Mulch (labor only)"],
+                  ["gutter", "Gutter clean (1-story)"],
+                ].map(([k, label]) => (
+                  <Checkbox key={k} name="svc" checked={svcs.includes(k)} onChange={() => toggleSvc(k)}>
+                    {label}
+                  </Checkbox>
+                ))}
+              </Fieldset>
+
+              <Fieldset legend="Debris handling">
+                {[
+                  ["curb", "Bag & leave at curb"],
+                  ["haul", "Haul away & dispose"],
+                ].map(([v, label]) => (
+                  <Radio key={v} name="haul" value={v} checked={haul === v} onChange={setHaul}>
+                    {label}
+                  </Radio>
+                ))}
+              </Fieldset>
+
+              <Fieldset legend="Timing">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    ["once", "One-time clean-up"],
+                    ["recurring", "Recurring maintenance"],
+                  ].map(([v, label]) => (
+                    <Radio key={v} name="freq" value={v} checked={freq === v} onChange={setFreq}>
+                      {label}
+                    </Radio>
+                  ))}
+                  <Checkbox name="rush" checked={rush} onChange={() => setRush((x) => !x)}>
+                    Rush scheduling
+                  </Checkbox>
+                </div>
+              </Fieldset>
+            </div>
+
+            <button onClick={(e) => e.preventDefault()} className="mt-6 w-full rounded-2xl border bg-slate-900 px-4 py-3 font-semibold text-white hover:shadow">
+              Get Estimate
+            </button>
+          </div>
+
+          {/* RIGHT OUTPUT */}
+          <div className="rounded-3xl border bg-white p-6 shadow-sm">
+            <h3 className="text-xl font-semibold">Your Estimate</h3>
+            <p className="price mt-2 text-3xl font-extrabold">{currency(low)} – {currency(high)}</p>
+
+            {/* pills */}
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+              {[...svcs, condition, trees, access, freq, rush ? "rush" : null]
+                .filter(Boolean)
+                .map((x) => (
+                  <span key={x} className="rounded-full border px-2.5 py-1 text-slate-700 bg-slate-50">
+                    {x}
+                  </span>
+                ))}
+            </div>
+
+            <div className="my-4 h-px bg-slate-200" />
+
+            <div className="space-y-2 text-sm">
+              {lines.map(([label, amt], i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div>{label}</div>
+                  <div className="font-medium">{currency(amt)}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="my-4 h-px bg-slate-200" />
+
+            {/* Lead form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const data = new FormData(e.currentTarget);
+                const body = encodeURIComponent(
+                  `Name: ${data.get("name")}\nPhone: ${data.get("phone")}\nTown: ${data.get("town")}\n\nChosen options: ${[
+                    `size=${size}`,
+                    `condition=${condition}`,
+                    `trees=${trees}`,
+                    `access=${access}`,
+                    `haul=${haul}`,
+                    `freq=${freq}`,
+                    `rush=${rush}`,
+                    `services=${svcs.join(",")}`,
+                  ].join("; ")}\n\nNotes:\n${data.get("notes")}`
+                );
+                // Always open in a new tab per your preference
+                const mailto = `mailto:${BIZ.email}?subject=Estimate request&body=${body}`;
+                window.open(mailto, "_blank");
+              }}
+              className="text-sm"
+            >
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-slate-600">Name</span>
+                  <input name="name" required className="mt-1 w-full rounded-xl border px-3 py-2" />
+                </label>
+                <label className="block">
+                  <span className="text-slate-600">Phone</span>
+                  <input name="phone" required className="mt-1 w-full rounded-xl border px-3 py-2" />
+                </label>
+                <label className="block sm:col-span-2">
+                  <span className="text-slate-600">Town</span>
+                  <input name="town" className="mt-1 w-full rounded-xl border px-3 py-2" />
+                </label>
+                <label className="block sm:col-span-2">
+                  <span className="text-slate-600">Notes</span>
+                  <textarea name="notes" rows={3} className="mt-1 w-full rounded-xl border px-3 py-2" />
+                </label>
+              </div>
+              <button type="submit" className="mt-4 w-full rounded-2xl border bg-slate-900 px-4 py-3 font-semibold text-white hover:shadow">
+                Send Info
+              </button>
+              <p className="mt-2 text-xs text-slate-500">
+                We’ll open your email app in a new tab with your message pre‑filled—just hit send.
+              </p>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const DOMAIN = "https://dbgith.llc.com"; // TODO: verify domain
+
+export default function Website() {
+  // Inject SEO: LocalBusiness schema + canonical + OpenGraph/Twitter meta
+  useEffect(() => {
+    const head = document.head;
+
+    const ld = {
+      "@context": "https://schema.org",
+      "@type": "HomeAndConstructionBusiness",
+      name: BIZ.name,
+      telephone: BIZ.phone,
+      email: BIZ.email,
+      areaServed: AREAS.map((x) => `${x}, NY`),
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: BIZ.city,
+        addressRegion: "NY",
+        addressCountry: "US",
+      },
+      openingHours: BIZ.hours,
+      url: DOMAIN,
+      sameAs: [],
+    };
+    const ldScript = document.createElement("script");
+    ldScript.type = "application/ld+json";
+    ldScript.text = JSON.stringify(ld);
+
+    const canonical = document.createElement("link");
+    canonical.rel = "canonical";
+    canonical.href = DOMAIN;
+
+    const metaTitle = `${BIZ.name} | ${BIZ.city}, ${BIZ.state}`;
+    const metaDesc = `${BIZ.tagline} • Handyman, carpentry, and landscaping across ${BIZ.county}. Free estimates. ${BIZ.hours}.`;
+
+    const titleTag = document.createElement("title");
+    titleTag.textContent = metaTitle;
+
+    const ogTitle = document.createElement("meta");
+    ogTitle.setAttribute("property", "og:title");
+    ogTitle.setAttribute("content", metaTitle);
+
+    const ogDesc = document.createElement("meta");
+    ogDesc.setAttribute("property", "og:description");
+    ogDesc.setAttribute("content", metaDesc);
+
+    const ogUrl = document.createElement("meta");
+    ogUrl.setAttribute("property", "og:url");
+    ogUrl.setAttribute("content", DOMAIN);
+
+    const twitterCard = document.createElement("meta");
+    twitterCard.setAttribute("name", "twitter:card");
+    twitterCard.setAttribute("content", "summary_large_image");
+
+    const theme = document.createElement("meta");
+    theme.setAttribute("name", "theme-color");
+    theme.setAttribute("content", "#0f172a");
+
+    head.appendChild(titleTag);
+    head.appendChild(canonical);
+    head.appendChild(ogTitle);
+    head.appendChild(ogDesc);
+    head.appendChild(ogUrl);
+    head.appendChild(twitterCard);
+    head.appendChild(theme);
+    head.appendChild(ldScript);
+
+    // Force all external links to open in a new tab (keeps users on page)
+    const setTargets = () => {
+      document.querySelectorAll('a[href]')?.forEach((a) => {
+        const href = a.getAttribute('href') || '';
+        const isHash = href.startsWith('#');
+        if (!isHash) a.setAttribute('target', '_blank');
+        a.setAttribute('rel', 'noopener');
+      });
+    };
+    setTargets();
+
+    return () => {
+      [titleTag, canonical, ogTitle, ogDesc, ogUrl, twitterCard, theme, ldScript].forEach((el) => {
+        try { head.removeChild(el); } catch {}
+      });
+    };
+  }, []);
+
+  return (
+    <main className="min-h-screen bg-gradient-to-b from-white to-slate-50 text-slate-800">
+      {/* Nav */}
+      <header className="sticky top-0 z-30 border-b bg-white/80 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <a href="#home" className="text-xl font-semibold tracking-tight">{BIZ.name}</a>
+          <nav className="hidden items-center gap-6 text-sm md:flex">
+            <a href="#services" className="hover:underline">Services</a>
+            <a href="#areas" className="hover:underline">Service Area</a>
+            <a href="#pricing" className="hover:underline">Pricing</a>
+            <a href="#estimator" className="hover:underline">Estimator</a>
+            <a href="#work" className="hover:underline">Gallery</a>
+            <a href="#contact" className="hover:underline">Contact</a>
+          </nav>
+          <a
+            href={`tel:${BIZ.phone.replace(/[^\d]/g, "")}`}
+            className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm shadow-sm hover:shadow"
+          >
+            <PhoneIcon className="h-4 w-4" /> {BIZ.phone}
+          </a>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section id="home" className="relative overflow-hidden">
+        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 md:py-28 lg:px-8">
+          <div className="grid items-center gap-10 md:grid-cols-2">
+            <div>
+              <h1 className="text-4xl font-extrabold tracking-tight md:text-5xl">{BIZ.tagline}</h1>
+              <p className="mt-5 max-w-prose text-lg text-slate-600">
+                {BIZ.name} handles small-to-medium repairs, light carpentry, and full‑service yard care across {BIZ.county}. Local, responsive, and detail‑focused.
+              </p>
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <a href="#contact" className="rounded-2xl border bg-slate-900 px-5 py-3 text-base font-semibold text-white shadow hover:shadow-md">
+                  {BIZ.cta}
+                </a>
+                <a href={`mailto:${BIZ.email}`} className="rounded-2xl border px-5 py-3 text-base font-semibold shadow hover:shadow-md">
+                  Email us
+                </a>
+              </div>
+              <div className="mt-8 flex flex-wrap gap-2">
+                <Badge><CheckIcon className="h-4 w-4" /> Licensed & Insured</Badge>
+                <Badge><CheckIcon className="h-4 w-4" /> Free Estimates</Badge>
+                <Badge><CheckIcon className="h-4 w-4" /> Same‑week scheduling</Badge>
+              </div>
+            </div>
+            <div className="relative">
+              <div
+                className="aspect-[4/3] w-full rounded-3xl border bg-cover bg-center shadow-sm"
+                style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1616594039964-44472b45a651?q=80&w=1600&auto=format&fit=crop)' }}
+              />
+              <div className="absolute -bottom-4 -left-4 rotate-[-2deg] rounded-xl border bg-white px-4 py-3 shadow">
+                <p className="text-sm">
+                  <span className="font-semibold">Serving:</span> {AREAS.slice(0, 6).join(", ")}…
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Services */}
+      <section id="services" className="bg-white py-16 md:py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <h2 className="text-3xl font-bold tracking-tight">Services</h2>
+          <p className="mt-2 text-slate-600">Hire us for a single fix or bundle a few and save.</p>
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {SERVICES.map((s) => (
+              <div key={s.title} className="rounded-3xl border p-6 shadow-sm hover:shadow">
+                <h3 className="text-lg font-semibold">{s.title}</h3>
+                <ul className="mt-4 space-y-2 text-sm">
+                  {s.items.map((i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <CheckIcon className="mt-0.5 h-4 w-4" /> <span>{i}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" className="bg-slate-50 py-16 md:py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <h2 className="text-3xl font-bold tracking-tight">Simple, transparent pricing</h2>
+          <p className="mt-2 text-slate-600">Exact quotes provided after a quick call or photos. No surprise fees.</p>
+          <div className="mt-10 grid gap-6 md:grid-cols-3">
+            <div className="rounded-3xl border bg-white p-6 shadow-sm">
+              <h3 className="font-semibold">Hourly (small jobs)</h3>
+              <p className="mt-2 text-3xl font-extrabold">
+                $95<span className="text-base font-medium">/hr</span>
+              </p>
+              <p className="mt-2 text-sm text-slate-600">1‑hour minimum · Materials billed at cost</p>
+            </div>
+            <div className="rounded-3xl border bg-white p-6 shadow-sm">
+              <h3 className="font-semibold">Flat‑rate bundles</h3>
+              <ul className="mt-3 space-y-2 text-sm">
+                <li>
+                  TV mount + conceal: <span className="font-medium">from $180</span>
+                </li>
+                <li>
+                  Vanity replace: <span className="font-medium">from $260</span>
+                </li>
+                <li>
+                  Door install: <span className="font-medium">from $220</span>
+                </li>
+                <li>
+                  Mulch refresh (yard): <span className="font-medium">from $250</span>
+                </li>
+              </ul>
+            </div>
+            <div className="rounded-3xl border bg-white p-6 shadow-sm">
+              <h3 className="font-semibold">Recurring lawn care</h3>
+              <ul className="mt-3 space-y-2 text-sm">
+                <li>
+                  Weekly mow: <span className="font-medium">from $45/visit</span>
+                </li>
+                <li>
+                  Bi‑weekly mow: <span className="font-medium">from $55/visit</span>
+                </li>
+                <li>
+                  Seasonal package: <span className="font-medium">custom quote</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <p className="mt-4 text-xs text-slate-500">Prices are illustrative; customize to your exact rates and services.</p>
+        </div>
+      </section>
+
+      {/* Estimator (merged) */}
+      <Estimator />
+
+      {/* Work / Gallery (placeholder) */}
+      <section id="work" className="bg-white py-16 md:py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <h2 className="text-3xl font-bold tracking-tight">Recent work</h2>
+          <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
+            {["fence", "deck", "mulch", "sod", "trim", "tile", "cleanup", "gate"].map((k, idx) => (
+              <div
+                key={idx}
+                className="aspect-square rounded-2xl border bg-cover bg-center shadow-sm"
+                style={{ backgroundImage: `url(https://source.unsplash.com/collection/483251/${idx + 1})` }}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Service Areas */}
+      <section id="areas" className="bg-slate-50 py-16 md:py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <h2 className="text-3xl font-bold tracking-tight">Service area</h2>
+          <p className="mt-2 text-slate-600">Based in {BIZ.city}, we serve most of {BIZ.county}.</p>
+          <ul className="mt-6 grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+            {AREAS.map((a) => (
+              <li key={a} className="rounded-xl border bg-white px-4 py-3 shadow-sm">
+                {a}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <section id="reviews" className="bg-white py-16 md:py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <h2 className="text-3xl font-bold tracking-tight">Neighbors love us</h2>
+          <div className="mt-8 grid gap-6 md:grid-cols-3">
+            {TESTIMONIALS.map((t) => (
+              <figure key={t.name} className="rounded-2xl border from-white to-slate-50 bg-gradient-to-b p-6 shadow-sm">
+                <blockquote className="text-slate-700">“{t.quote}”</blockquote>
+                <figcaption className="mt-4 text-sm text-slate-600">— {t.name}</figcaption>
+              </figure>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Contact */}
+      <section id="contact" className="bg-slate-900 py-16 text-white md:py-24">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 items-start gap-10 px-4 sm:px-6 md:grid-cols-2 lg:px-8">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Get your free estimate</h2>
+            <p className="mt-2 text-slate-300">Text a photo, call, or send a quick message and we’ll reply the same day.</p>
+
+            <div className="mt-6 space-y-3">
+              <a
+                href={`tel:${BIZ.phone.replace(/[^\d]/g, "")}`}
+                className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/5 px-4 py-3 hover:bg-white/10"
+              >
+                <PhoneIcon className="h-5 w-5" /> <span className="font-semibold">{BIZ.phone}</span>
+              </a>
+              <a
+                href={`mailto:${BIZ.email}`}
+                className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/5 px-4 py-3 hover:bg-white/10"
+              >
+                <MailIcon className="h-5 w-5" /> <span className="font-semibold">{BIZ.email}</span>
+              </a>
+              <div className="rounded-2xl border border-white/20 bg-white/5 px-4 py-3">
+                <p className="text-sm">
+                  <span className="font-semibold">Hours:</span> {BIZ.hours}
+                </p>
+                <p className="text-sm">
+                  <span className="font-semibold">Based in:</span> {BIZ.address}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* simple form that opens an email in a new tab */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const data = new FormData(e.currentTarget);
+              const body = encodeURIComponent(
+                `Name: ${data.get("name")}\nPhone: ${data.get("phone")}\nTown: ${data.get("town")}\nService: ${data.get("service")}\n\nMessage:\n${data.get("message")}`
+              );
+              const mailto = `mailto:${BIZ.email}?subject=Estimate request&body=${body}`;
+              window.open(mailto, "_blank");
+            }}
+            className="rounded-3xl bg-white p-6 text-slate-800 shadow-xl md:p-8"
+          >
+            <h3 className="text-xl font-semibold">Tell us about the job</h3>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-1">
+                <label className="text-sm">Name</label>
+                <input name="name" required className="mt-1 w-full rounded-xl border px-3 py-2" />
+              </div>
+              <div className="sm:col-span-1">
+                <label className="text-sm">Phone</label>
+                <input name="phone" required className="mt-1 w-full rounded-xl border px-3 py-2" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-sm">Town</label>
+                <input name="town" className="mt-1 w-full rounded-xl border px-3 py-2" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-sm">Service needed</label>
+                <input name="service" className="mt-1 w-full rounded-xl border px-3 py-2" placeholder="e.g., fence repair, weekly mow" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-sm">Message (optional)</label>
+                <textarea name="message" rows={5} className="mt-1 w-full rounded-xl border px-3 py-2" placeholder="Add details & preferred timing…" />
+              </div>
+            </div>
+            <button type="submit" className="mt-4 w-full rounded-2xl border bg-slate-900 px-4 py-3 font-semibold text-white hover:shadow">
+              Send
+            </button>
+            <p className="mt-2 text-xs text-slate-500">By submitting, we’ll open your email app in a new tab with your message pre‑filled—just hit send.</p>
+          </form>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t bg-white py-10">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 text-sm md:flex-row sm:px-6 lg:px-8">
+          <p>
+            © {new Date().getFullYear()} {BIZ.name}. All rights reserved.
+          </p>
+          <p className="text-slate-500">
+            {BIZ.city}, {BIZ.state} · {BIZ.hours}
+          </p>
+        </div>
+      </footer>
+    </main>
+  );
+}
+
+function Fieldset({ legend, children }) {
+  return (
+    <fieldset className="grid gap-3">
+      <legend className="mb-1 font-semibold">{legend}</legend>
+      {children}
+    </fieldset>
+  );
+}
+
+function Radio({ name, value, checked, onChange, children }) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2">
+      <input
+        type="radio"
+        name={name}
+        value={value}
+        checked={checked}
+        onChange={() => onChange(value)}
+        className="accent-slate-900"
+      />
+      <span>{children}</span>
+    </label>
+  );
+}
+
+function Checkbox({ name, checked, onChange, children }) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2">
+      <input type="checkbox" name={name} checked={checked} onChange={onChange} className="accent-slate-900" />
+      <span>{children}</span>
+    </label>
+  );
+}
